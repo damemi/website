@@ -310,6 +310,33 @@ assuming that the number of replicas is not also changed).
 A ReplicaSet can be easily scaled up or down by simply updating the `.spec.replicas` field. The ReplicaSet controller
 ensures that a desired number of Pods with a matching label selector are available and operational.
 
+When scaling down, the ReplicaSet controller chooses which pods to delete by sorting the available pods to
+prioritize scaling down pods based on the following sorting keys:
+ 1. If only one of the pods is assigned to a node, the pod that is not
+    assigned comes before the pod that is.
+ 2. If the pods' phases differ, a pending pod comes before a pod whose phase
+    is unknown, and a pod whose phase is unknown comes before a running pod.
+ 3. If exactly one of the pods is ready, the pod that is not ready comes
+    before the ready pod.
+ 4. If controller.kubernetes.io/pod-deletion-cost annotation is set, then
+    the pod with the lower value will come first.
+ 5. If the pods' ranks differ, the pod with greater rank comes before the pod
+    with lower rank.
+ 6. If both pods are ready but have not been ready for the same amount of
+    time, the pod that has been ready for a shorter amount of time comes
+    before the pod that has been ready for longer.
+ 7. If one pod has a container that has restarted more than any container in
+    the other pod, the pod with the container with more restarts comes
+    before the other pod.
+ 8. If the pods' creation times differ, the pod that was created more recently
+    comes before the older pod.
+
+In 6 and 8, times are compared in a logarithmic scale. This allows a level
+of randomness among equivalent Pods when sorting. If two pods have the same
+logarithmic rank, they are sorted by UUID to provide a pseudorandom order.
+
+If none of these rules matches, the second pod comes before the first pod.
+
 ### ReplicaSet as a Horizontal Pod Autoscaler Target
 
 A ReplicaSet can also be a target for
